@@ -3,25 +3,28 @@ import pandas as pd
 from rapidfuzz import fuzz
 from datetime import datetime
 
-# ---------------------------
+st.set_page_config(layout="wide")
+
+# -----------------------
 # CONFIG
-# ---------------------------
+# -----------------------
+
 WEIGHTS = {
-    "pan": 40,
-    "name": 30,
-    "dob": 25,
-    "state": 15,
-    "city": 10
+    "PAN": 40,
+    "Name": 30,
+    "DOB": 25,
+    "State": 15,
+    "City": 10
 }
 
-# ---------------------------
-# FUNCTIONS
-# ---------------------------
+# -----------------------
+# SCORING FUNCTIONS
+# -----------------------
 
-def calculate_name_score(applicant_name, result_name):
-    similarity = fuzz.token_sort_ratio(applicant_name, result_name)
+def score_name(app_name, res_name):
+    similarity = fuzz.token_sort_ratio(app_name, res_name)
     if similarity >= 95:
-        return 30
+        return WEIGHTS["Name"]
     elif similarity >= 85:
         return 25
     elif similarity >= 70:
@@ -29,14 +32,14 @@ def calculate_name_score(applicant_name, result_name):
     else:
         return 0
 
-def calculate_dob_score(applicant_dob, result_dob):
+def score_dob(app_dob, res_dob):
     try:
-        d1 = datetime.strptime(applicant_dob, "%d-%m-%Y")
-        d2 = datetime.strptime(result_dob, "%d-%m-%Y")
+        d1 = datetime.strptime(app_dob, "%d-%m-%Y")
+        d2 = datetime.strptime(res_dob, "%d-%m-%Y")
         diff = abs((d1 - d2).days)
 
         if diff == 0:
-            return 25
+            return WEIGHTS["DOB"]
         elif diff <= 30:
             return 20
         elif diff <= 90:
@@ -46,20 +49,17 @@ def calculate_dob_score(applicant_dob, result_dob):
     except:
         return 0
 
-def calculate_pan_score(applicant_pan, result_pan):
-    if applicant_pan and result_pan and applicant_pan == result_pan:
-        return 40
-    return 0
+def score_pan(app_pan, res_pan):
+    return WEIGHTS["PAN"] if app_pan == res_pan and res_pan != "" else 0
 
-def calculate_location_score(applicant_state, result_state,
-                             applicant_city, result_city):
-    state_score = 15 if applicant_state == result_state else 0
-    city_score = 10 if applicant_city == result_city else 0
+def score_location(app_state, res_state, app_city, res_city):
+    state_score = WEIGHTS["State"] if app_state == res_state else 0
+    city_score = WEIGHTS["City"] if app_city == res_city else 0
     return state_score + city_score
 
-def determine_status(score, crime_severity):
+def determine_status(score, crime):
     if score >= 90:
-        status = "Confirmed Match"
+        status = "Confirmed"
     elif score >= 75:
         status = "High Probability"
     elif score >= 60:
@@ -67,57 +67,81 @@ def determine_status(score, crime_severity):
     else:
         status = "No Match"
 
-    if crime_severity == "High" and score >= 75:
+    if crime == "High" and score >= 75:
         return "Escalate"
 
     return status
 
-# ---------------------------
-# STREAMLIT UI
-# ---------------------------
+# -----------------------
+# UI
+# -----------------------
 
-st.title("Savdhaan Confidence Scoring Engine")
+st.title("Savdhaan Intelligent Confidence Engine")
 
-st.header("Applicant Details")
+col1, col2 = st.columns(2)
 
-applicant_name = st.text_input("Name", "Rahul Kumar Singh")
-applicant_dob = st.text_input("DOB (DD-MM-YYYY)", "10-05-1992")
-applicant_pan = st.text_input("PAN", "ABCDE1234F")
-applicant_state = st.text_input("State", "Maharashtra")
-applicant_city = st.text_input("City", "Mumbai")
+with col1:
+    app_name = st.text_input("Applicant Name", "Rahul Kumar Singh")
+    app_dob = st.text_input("DOB (DD-MM-YYYY)", "10-05-1992")
+    app_pan = st.text_input("PAN", "ABCDE1234F")
 
-# Dummy Savdhaan Results
-results = [
-    {"name": "Rahul K Singh", "dob": "10-05-1992", "state": "Maharashtra", "city": "Mumbai", "pan": "", "crime": "Low"},
-    {"name": "Rahul Kumar", "dob": "01-07-1991", "state": "MP", "city": "Indore", "pan": "", "crime": "High"},
-    {"name": "R K Singh", "dob": "11-05-1992", "state": "Maharashtra", "city": "Mumbai", "pan": "", "crime": "Medium"},
-    {"name": "Rahul Kumar Singh", "dob": "10-05-1992", "state": "Maharashtra", "city": "Mumbai", "pan": "ABCDE1234F", "crime": "Low"},
+with col2:
+    app_state = st.text_input("State", "Maharashtra")
+    app_city = st.text_input("City", "Mumbai")
+
+# Dummy multi-check data
+crime_results = [
+    {"name": "Rahul K Singh", "dob": "10-05-1992", "state": "Maharashtra", "city": "Mumbai", "pan": "", "severity": "Low", "link": "https://example.com/crime1"},
+    {"name": "Rahul Kumar", "dob": "01-07-1991", "state": "MP", "city": "Indore", "pan": "", "severity": "High", "link": "https://example.com/crime2"}
 ]
+
+political_results = [
+    {"name": "R K Singh", "dob": "11-05-1992", "state": "Maharashtra", "city": "Mumbai", "pan": "", "severity": "Medium", "link": "https://example.com/political1"}
+]
+
+cibil_results = [
+    {"name": "Rahul Kumar Singh", "dob": "10-05-1992", "state": "Maharashtra", "city": "Mumbai", "pan": "ABCDE1234F", "severity": "Low", "link": "https://example.com/cibil1"}
+]
+
+def process_results(results):
+    processed = []
+    for r in results:
+        pan_s = score_pan(app_pan, r["pan"])
+        name_s = score_name(app_name, r["name"])
+        dob_s = score_dob(app_dob, r["dob"])
+        loc_s = score_location(app_state, r["state"], app_city, r["city"])
+
+        total = pan_s + name_s + dob_s + loc_s
+        status = determine_status(total, r["severity"])
+
+        breakdown = {
+            "PAN Score": pan_s,
+            "Name Score": name_s,
+            "DOB Score": dob_s,
+            "Location Score": loc_s
+        }
+
+        processed.append((r, total, status, breakdown))
+
+    return processed
 
 if st.button("Run Savdhaan Check"):
 
-    final_data = []
+    tab1, tab2, tab3 = st.tabs(["Crime Check", "Political Check", "CIBIL Check"])
 
-    for r in results:
-        score = 0
-        score += calculate_pan_score(applicant_pan, r["pan"])
-        score += calculate_name_score(applicant_name, r["name"])
-        score += calculate_dob_score(applicant_dob, r["dob"])
-        score += calculate_location_score(applicant_state, r["state"],
-                                          applicant_city, r["city"])
+    for tab, data in zip([tab1, tab2, tab3],
+                         [crime_results, political_results, cibil_results]):
 
-        status = determine_status(score, r["crime"])
+        with tab:
+            results = process_results(data)
 
-        final_data.append({
-            "Result Name": r["name"],
-            "Crime Severity": r["crime"],
-            "Confidence Score": score,
-            "Status": status
-        })
+            for r, score, status, breakdown in results:
+                st.markdown(f"### {r['name']}")
+                st.write(f"Confidence Score: **{score}**")
+                st.write(f"Status: **{status}**")
+                st.write(f"[View Source Link]({r['link']})")
 
-    df = pd.DataFrame(final_data)
+                with st.expander("See Scoring Logic Breakdown"):
+                    st.json(breakdown)
 
-    st.subheader("Results")
-    st.dataframe(df)
-
-    st.success("Scoring Completed Successfully")
+    st.success("All checks processed successfully.")
