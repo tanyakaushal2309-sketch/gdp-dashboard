@@ -10,10 +10,10 @@ st.set_page_config(layout="wide")
 # -----------------------
 
 WEIGHTS = {
-    "PAN": 40,
-    "Name": 30,
-    "DOB": 25,
-    "State": 15,
+    "PAN": 35,
+    "Name": 25,
+    "DOB": 20,
+    "State": 10,
     "City": 10
 }
 
@@ -61,7 +61,7 @@ def determine_status(score, crime):
     if score >= 90:
         status = "Confirmed"
     elif score >= 75:
-        status = "High Probability"
+        status = "Potential Match"
     elif score >= 60:
         status = "Possible Match"
     else:
